@@ -14,6 +14,22 @@ import type {
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
+/**
+ * NEXT_PUBLIC_* values are inlined at build time. Shipping a build that points
+ * at localhost means every visitor's browser calls *their own* machine, which
+ * always fails — so say so loudly instead of leaving a silent dead API.
+ */
+if (typeof window !== 'undefined') {
+  const apiIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(API_URL);
+  const pageIsLocal = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+  if (apiIsLocal && !pageIsLocal) {
+    console.error(
+      `[CRE8R] This build points at ${API_URL}, but the page is served from ${window.location.origin}. ` +
+        'NEXT_PUBLIC_API_URL is baked in at build time — rebuild with the deployed API URL.',
+    );
+  }
+}
+
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message);

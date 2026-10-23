@@ -1,0 +1,22 @@
+# Render blueprint for the CRE8R web app.
+#
+# NEXT_PUBLIC_* values are inlined into the JS bundle at BUILD time, so the API
+# URL must be passed as a Docker build argument — setting it as a runtime env
+# var has no effect. Point it at the deployed API, never at localhost.
+services:
+  - type: web
+    name: cre8r-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      # Must match the deployed API origin, e.g. https://cre8r-api.onrender.com/api
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+    dockerBuildArgs:
+      NEXT_PUBLIC_API_URL: $NEXT_PUBLIC_API_URL
