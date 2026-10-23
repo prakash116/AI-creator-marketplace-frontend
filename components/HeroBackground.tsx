@@ -14,13 +14,21 @@ const supportsWebGL = () => {
   }
 };
 
-/** CSS glow + grid always render; the Three.js orb loads lazily after idle when WebGL is available. */
+/**
+ * CSS glow + grid always render; the Three.js orb loads lazily after idle,
+ * and only when WebGL is available, motion isn't reduced, and the viewport is
+ * big enough to be worth ~900KB of renderer. Phones skip it entirely.
+ */
 export function HeroBackground() {
   const [show3d, setShow3d] = useState(false);
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced || !supportsWebGL()) return;
+    const tooSmall = window.matchMedia('(max-width: 767px)').matches;
+    // Rough proxy for low-end devices.
+    const weakDevice = (navigator.hardwareConcurrency ?? 8) <= 4;
+    if (reduced || tooSmall || weakDevice || !supportsWebGL()) return;
+
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
     if (ric) ric(() => setShow3d(true));
     else setTimeout(() => setShow3d(true), 300);
@@ -29,12 +37,12 @@ export function HeroBackground() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="grid-bg absolute inset-0" />
-      <div className="absolute top-[-10%] left-1/2 h-[700px] w-[900px] -translate-x-1/2 rounded-full bg-violet/25 blur-[140px]" />
-      <div className="absolute top-[30%] right-[-10%] h-[400px] w-[500px] rounded-full bg-cyan/10 blur-[120px]" />
+      <div className="glow absolute top-[-12%] left-1/2 h-[420px] w-[620px] -translate-x-1/2 rounded-full bg-violet blur-[130px] sm:h-[620px] sm:w-[900px]" />
+      <div className="glow absolute top-[28%] right-[-15%] h-[320px] w-[420px] rounded-full bg-cyan blur-[120px]" />
       <div className={`absolute inset-0 transition-opacity duration-[1500ms] ${show3d ? 'opacity-100' : 'opacity-0'}`}>
         {show3d && <HeroScene />}
       </div>
-      <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-ink-950 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg to-transparent" />
     </div>
   );
 }

@@ -62,7 +62,7 @@ export default function RegisterPage() {
                 onClick={() => set('role', r.value)}
                 className={cn(
                   'cursor-pointer rounded-xl border p-4 text-left transition',
-                  form.role === r.value ? 'border-purple/60 bg-purple/10' : 'border-line hover:border-white/20',
+                  form.role === r.value ? 'border-purple/60 bg-purple/10' : 'border-line hover:border-line-strong',
                 )}
               >
                 <r.icon className={cn('h-5 w-5', form.role === r.value ? 'text-purple' : 'text-muted')} />
@@ -74,27 +74,27 @@ export default function RegisterPage() {
         </div>
         <div>
           <label className="label" htmlFor="name">{form.role === 'brand' ? 'Name or company' : 'Full name'}</label>
-          <input id="name" className={cn('field', errors.name && 'border-red-500/60')} placeholder={form.role === 'brand' ? 'Northwind Studio' : 'Aarav Mehta'} value={form.name} onChange={(e) => set('name', e.target.value)} />
-          {errors.name && <p className="mt-1.5 text-xs text-red-400">{errors.name}</p>}
+          <input id="name" className={cn('field', errors.name && 'border-danger/60')} placeholder={form.role === 'brand' ? 'Northwind Studio' : 'Aarav Mehta'} value={form.name} onChange={(e) => set('name', e.target.value)} />
+          {errors.name && <p className="mt-1.5 text-xs text-danger">{errors.name}</p>}
         </div>
         <div>
           <label className="label" htmlFor="email">Email</label>
-          <input id="email" type="email" className={cn('field', errors.email && 'border-red-500/60')} placeholder="you@studio.com" value={form.email} onChange={(e) => set('email', e.target.value)} />
-          {errors.email && <p className="mt-1.5 text-xs text-red-400">{errors.email}</p>}
+          <input id="email" type="email" className={cn('field', errors.email && 'border-danger/60')} placeholder="you@studio.com" value={form.email} onChange={(e) => set('email', e.target.value)} />
+          {errors.email && <p className="mt-1.5 text-xs text-danger">{errors.email}</p>}
         </div>
         <div>
           <label className="label" htmlFor="password">Password</label>
-          <input id="password" type="password" className={cn('field', errors.password && 'border-red-500/60')} placeholder="At least 6 characters" value={form.password} onChange={(e) => set('password', e.target.value)} />
-          {errors.password && <p className="mt-1.5 text-xs text-red-400">{errors.password}</p>}
+          <input id="password" type="password" className={cn('field', errors.password && 'border-danger/60')} placeholder="At least 6 characters" value={form.password} onChange={(e) => set('password', e.target.value)} />
+          {errors.password && <p className="mt-1.5 text-xs text-danger">{errors.password}</p>}
         </div>
-        {errors.form && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{errors.form}</p>}
+        {errors.form && <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{errors.form}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading && <Loader2 className="h-4 w-4 animate-spin" />} Create account
         </Button>
       </form>
       <p className="mt-6 text-center text-sm text-muted">
         Already have an account?{' '}
-        <Link href="/login" className="text-purple hover:text-violet-300">
+        <Link href="/login" className="text-purple hover:text-violet">
           Log in
         </Link>
       </p>

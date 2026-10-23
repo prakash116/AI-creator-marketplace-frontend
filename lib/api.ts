@@ -1,6 +1,16 @@
-import { BRIEFS, CREATORS, DEMO_USERS, PORTFOLIO, SKILLS, TOOLS } from '@/data/seed';
-import { filterCreators } from '@/lib/filter';
-import type { AuthUser, Brief, Creator, CreatorFilters, PortfolioItem, Role, Skill, Tool } from '@/types';
+import type {
+  AuthUser,
+  Availability,
+  Brief,
+  ContentType,
+  Creator,
+  CreatorFilters,
+  PortfolioItem,
+  Role,
+  Skill,
+  Tool,
+  WorkflowStep,
+} from '@/types';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 
@@ -10,11 +20,19 @@ export class ApiError extends Error {
   }
 }
 
-/** Thrown when the backend cannot be reached — callers fall back to local seed data. */
-class OfflineError extends Error {}
+/**
+ * The server could not be reached at all (network down, backend not running,
+ * request timed out). Reported as a real error with status 0 — the app used to
+ * substitute bundled demo data here, which made an outage look like success:
+ * registration appeared to work while nothing was saved anywhere.
+ */
+export class OfflineError extends ApiError {
+  constructor() {
+    super("Can't reach the server. Check that the backend is running, then try again.", 0);
+  }
+}
 
 const TOKEN_KEY = 'cre8r.token';
-const LOCAL_BRIEFS_KEY = 'cre8r.localBriefs';
 
 const safeStorage = {
   get(key: string) {
@@ -39,9 +57,12 @@ export const tokenStore = {
   set: (t: string | null) => safeStorage.set(TOKEN_KEY, t),
 };
 
+/** Generous enough to survive a cold start on a sleeping free-tier host. */
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const token = tokenStore.get();
   let res: Response;
   try {
@@ -50,16 +71,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...(token && !token.startsWith('offline.') ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },
       cache: 'no-store',
     });
   } catch {
-    throw new OfflineError('Backend unreachable');
+    throw new OfflineError();
   } finally {
     clearTimeout(timer);
   }
+
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {
@@ -70,133 +92,118 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     throw new ApiError(message, res.status);
   }
-  return res.json() as Promise<T>;
+
+  // 204 and empty bodies would blow up res.json().
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
-/** Try the API; on network failure use the offline implementation. */
-async function withFallback<T>(online: () => Promise<T>, offline: () => T | Promise<T>): Promise<T> {
-  try {
-    return await online();
-  } catch (e) {
-    if (e instanceof OfflineError) return offline();
-    throw e;
-  }
-}
-
-const toQuery = (f: Partial<CreatorFilters> & { limit?: number; featured?: boolean }) => {
+const toQuery = (f: Record<string, unknown>) => {
   const p = new URLSearchParams();
   Object.entries(f).forEach(([k, v]) => {
     if (Array.isArray(v)) {
       if (v.length) p.set(k, v.join(','));
     } else if (typeof v === 'boolean') {
       if (v) p.set(k, 'true');
-    } else if (v !== undefined && v !== '') p.set(k, String(v));
+    } else if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
   });
   const s = p.toString();
   return s ? `?${s}` : '';
 };
 
-const localBriefs = (): Brief[] => {
-  try {
-    return JSON.parse(safeStorage.get(LOCAL_BRIEFS_KEY) ?? '[]');
-  } catch {
-    return [];
-  }
-};
+/** Fields a creator may change on their own profile. */
+export interface CreatorProfileUpdate {
+  name?: string;
+  username?: string;
+  avatar?: string;
+  cover?: string;
+  headline?: string;
+  bio?: string;
+  location?: string;
+  specialization?: string[];
+  focusAreas?: string[];
+  skills?: string[];
+  tools?: string[];
+  contentTypes?: ContentType[];
+  experience?: number;
+  hourlyRate?: number;
+  availability?: Availability;
+  responseTime?: string;
+  workflow?: WorkflowStep[];
+}
 
-const withPortfolio = (c: Creator): Creator => ({ ...c, portfolio: PORTFOLIO.filter((p) => p.creatorId === c.id) });
+export interface NewPortfolioItem {
+  creatorId?: string;
+  title: string;
+  description?: string;
+  mediaUrl: string;
+  thumbnail?: string;
+  contentType: ContentType;
+  tools?: string[];
+  tags?: string[];
+}
 
 export const api = {
   health: () => request<{ status: string; db: string }>('/health'),
 
+  // ---------- creators ----------
   getCreators: (f: Partial<CreatorFilters> & { limit?: number; featured?: boolean } = {}) =>
-    withFallback(
-      () => request<{ data: Creator[]; total: number }>(`/creators${toQuery(f)}`),
-      () => {
-        let data = filterCreators(CREATORS, {
-          search: '', specialization: [], skill: [], tool: [], contentType: [], location: [], experience: [], verified: false, sort: 'relevance',
-          ...f,
-        });
-        if (f.featured) data = data.filter((c) => c.featured);
-        if (f.limit) data = data.slice(0, f.limit);
-        return { data, total: data.length };
-      },
-    ),
+    request<{ data: Creator[]; total: number }>(`/creators${toQuery(f)}`),
 
-  getCreator: (id: string) =>
-    withFallback(
-      () => request<Creator>(`/creators/${encodeURIComponent(id)}`),
-      () => {
-        const c = CREATORS.find((x) => x.id === id || x.username === id);
-        if (!c) throw new ApiError('Creator not found', 404);
-        return withPortfolio(c);
-      },
-    ),
+  getCreator: (id: string) => request<Creator>(`/creators/${encodeURIComponent(id)}`),
 
+  /** The signed-in user's own profile, or null when they have none. */
+  getMyCreator: () => request<Creator | null>('/creators/me'),
+
+  /**
+   * Creates the signed-in user's creator profile. Normally registration does
+   * this, but it also recovers a creator account whose record is missing.
+   */
+  createCreator: (input: { name: string } & CreatorProfileUpdate) =>
+    request<Creator>('/creators', { method: 'POST', body: JSON.stringify(input) }),
+
+  updateCreator: (id: string, patch: CreatorProfileUpdate) =>
+    request<Creator>(`/creators/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+
+  // ---------- portfolio ----------
   getPortfolio: (params: { creatorId?: string; limit?: number } = {}) =>
-    withFallback(
-      () => request<PortfolioItem[]>(`/portfolios${toQuery(params as never)}`),
-      () => {
-        const items = PORTFOLIO.filter((p) => !params.creatorId || p.creatorId === params.creatorId);
-        return params.limit ? items.slice(0, params.limit) : items;
-      },
-    ),
+    request<PortfolioItem[]>(`/portfolios${toQuery(params)}`),
 
-  getBriefs: () =>
-    withFallback(
-      () => request<Brief[]>('/briefs'),
-      () => [...localBriefs(), ...BRIEFS].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    ),
+  createPortfolioItem: (input: NewPortfolioItem) =>
+    request<PortfolioItem>('/portfolios', { method: 'POST', body: JSON.stringify(input) }),
 
-  getBrief: (id: string) =>
-    withFallback(
-      () => request<Brief>(`/briefs/${encodeURIComponent(id)}`),
-      () => {
-        const b = [...localBriefs(), ...BRIEFS].find((x) => x.id === id);
-        if (!b) throw new ApiError('Brief not found', 404);
-        return b;
-      },
-    ),
+  // ---------- briefs ----------
+  getBriefs: () => request<Brief[]>('/briefs'),
+
+  getBrief: (id: string) => request<Brief>(`/briefs/${encodeURIComponent(id)}`),
 
   createBrief: (input: Omit<Brief, 'id' | 'applicants' | 'status' | 'createdAt'>) =>
-    withFallback(
-      () => request<Brief>('/briefs', { method: 'POST', body: JSON.stringify(input) }),
-      () => {
-        const brief: Brief = { ...input, id: `local-${Date.now()}`, applicants: 0, status: 'open', createdAt: new Date().toISOString() };
-        safeStorage.set(LOCAL_BRIEFS_KEY, JSON.stringify([brief, ...localBriefs()]));
-        return brief;
-      },
-    ),
+    request<Brief>('/briefs', { method: 'POST', body: JSON.stringify(input) }),
 
   applyToBrief: (id: string) =>
-    withFallback(
-      () => request<Brief>(`/briefs/${encodeURIComponent(id)}/apply`, { method: 'POST' }),
-      () => {
-        const b = [...localBriefs(), ...BRIEFS].find((x) => x.id === id);
-        if (!b) throw new ApiError('Brief not found', 404);
-        return { ...b, applicants: b.applicants + 1 };
-      },
-    ),
+    request<Brief>(`/briefs/${encodeURIComponent(id)}/apply`, { method: 'POST' }),
 
-  getSkills: () => withFallback(() => request<Skill[]>('/skills'), () => SKILLS),
-  getTools: () => withFallback(() => request<Tool[]>('/tools'), () => TOOLS),
+  // ---------- reference data ----------
+  getSkills: () => request<Skill[]>('/skills'),
+  getTools: () => request<Tool[]>('/tools'),
 
+  // ---------- auth ----------
   login: (email: string, password: string) =>
-    withFallback(
-      () => request<{ token: string; user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-      () => {
-        const u = DEMO_USERS.find((d) => d.email === email.toLowerCase() && d.password === password);
-        if (!u) throw new ApiError('Invalid email or password', 401);
-        return {
-          token: `offline.${u.email}`,
-          user: { id: u.email, name: u.name, email: u.email, role: u.role, creatorId: 'creatorId' in u ? u.creatorId : undefined },
-        };
-      },
-    ),
+    request<{ token: string; user: AuthUser }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
 
   register: (input: { name: string; email: string; password: string; role: Role }) =>
-    withFallback(
-      () => request<{ token: string; user: AuthUser }>('/auth/register', { method: 'POST', body: JSON.stringify(input) }),
-      () => ({ token: `offline.${input.email}`, user: { id: input.email, name: input.name, email: input.email, role: input.role } }),
-    ),
+    request<{ token: string; user: AuthUser }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  me: () => request<AuthUser>('/auth/me'),
+
+  uploadStatus: () => request<{ cloudinary: boolean }>('/uploads/status'),
 };

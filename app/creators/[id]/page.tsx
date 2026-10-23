@@ -54,8 +54,8 @@ function Section({ title, children, id }: { title: string; children: ReactNode; 
 
 const availabilityStyle = {
   Available: 'text-success bg-success/10 border-success/25',
-  Limited: 'text-amber-300 bg-amber-400/10 border-amber-400/25',
-  Booked: 'text-zinc-300 bg-white/5 border-line',
+  Limited: 'text-warn bg-warn/10 border-warn/25',
+  Booked: 'text-muted bg-raise border-line',
 };
 
 export default function CreatorProfilePage() {
@@ -151,7 +151,7 @@ export default function CreatorProfilePage() {
         </motion.div>
         <div className="absolute inset-0 bg-gradient-to-b from-ink-950/60 via-ink-950/40 to-ink-950" />
         <div className="container-x relative pt-24">
-          <Link href="/creators" className="inline-flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-sm text-zinc-200 backdrop-blur transition hover:bg-black/60">
+          <Link href="/creators" className="inline-flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-sm text-muted backdrop-blur transition hover:bg-black/60">
             <ArrowLeft className="h-4 w-4" /> All creators
           </Link>
         </div>
@@ -185,7 +185,7 @@ export default function CreatorProfilePage() {
               aria-label={saved ? 'Unsave creator' : 'Save creator'}
               className={cn(
                 'flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border transition',
-                saved ? 'border-pink-500/40 bg-pink-500/10 text-pink-400' : 'border-line-strong text-muted hover:text-white',
+                saved ? 'border-pink-500/40 bg-pink-500/10 text-pink-600 dark:text-pink-400' : 'border-line-strong text-muted hover:text-fg',
               )}
             >
               <Heart className={cn('h-4 w-4', saved && 'fill-current')} />
@@ -220,7 +220,7 @@ export default function CreatorProfilePage() {
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_320px]">
           <div className="space-y-12">
             <Section title="About">
-              <p className="leading-relaxed text-zinc-300">{creator.bio}</p>
+              <p className="leading-relaxed text-muted">{creator.bio}</p>
             </Section>
 
             <Section title="Specialization">
@@ -250,7 +250,7 @@ export default function CreatorProfilePage() {
                   <div key={t} className="surface group p-4 transition hover:border-purple/30">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-gradient-to-br from-white/[0.06] to-transparent text-sm font-semibold text-violet-200">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-gradient-to-br from-white/[0.06] to-transparent text-sm font-semibold text-purple">
                           {t.slice(0, 1)}
                         </span>
                         <div>
@@ -274,7 +274,7 @@ export default function CreatorProfilePage() {
                     onClick={() => setTypeFilter(t)}
                     className={cn(
                       'cursor-pointer rounded-full border px-3.5 py-1.5 text-xs transition',
-                      typeFilter === t ? 'border-white bg-white text-black' : 'border-line text-muted hover:text-white',
+                      typeFilter === t ? 'border-fg bg-fg text-bg' : 'border-line text-muted hover:text-fg',
                     )}
                   >
                     {t}
@@ -308,7 +308,7 @@ export default function CreatorProfilePage() {
                       transition={{ delay: i * 0.08 }}
                       className="flex gap-4 md:flex-col md:items-center md:text-center"
                     >
-                      <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-purple/40 bg-ink-950 text-sm font-semibold text-violet-200">
+                      <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-purple/40 bg-ink-950 text-sm font-semibold text-purple">
                         {i + 1}
                       </span>
                       <div>
@@ -333,12 +333,12 @@ export default function CreatorProfilePage() {
               <ul className="mt-5 space-y-3">
                 {creator.verification.map((v) => (
                   <li key={v.type} className="flex items-center justify-between text-sm">
-                    <span className={v.verified ? 'text-white' : 'text-subtle'}>{v.label}</span>
-                    {v.verified ? <CheckCircle2 className="h-4 w-4 text-success" /> : <XCircle className="h-4 w-4 text-zinc-600" />}
+                    <span className={v.verified ? 'text-fg' : 'text-subtle'}>{v.label}</span>
+                    {v.verified ? <CheckCircle2 className="h-4 w-4 text-success" /> : <XCircle className="h-4 w-4 text-subtle" />}
                   </li>
                 ))}
               </ul>
-              <div className="mt-5 rounded-xl border border-line bg-white/[0.02] p-3 text-xs text-muted">
+              <div className="mt-5 rounded-xl border border-line bg-raise p-3 text-xs text-muted">
                 {creator.verified ? (
                   <span className="flex items-center gap-2">
                     <BadgeCheck className="h-4 w-4 text-cyan" /> Fully verified creator

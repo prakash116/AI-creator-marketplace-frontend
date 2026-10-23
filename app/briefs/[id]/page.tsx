@@ -55,7 +55,7 @@ export default function BriefDetailPage() {
 
   return (
     <div className="container-x pt-28 pb-24">
-      <Link href="/briefs" className="inline-flex items-center gap-1.5 text-sm text-muted transition hover:text-white">
+      <Link href="/briefs" className="inline-flex items-center gap-1.5 text-sm text-muted transition hover:text-fg">
         <ArrowLeft className="h-4 w-4" /> All briefs
       </Link>
 
@@ -88,7 +88,7 @@ export default function BriefDetailPage() {
 
           <section className="mt-10">
             <h2 className="mb-3 font-semibold">Project description</h2>
-            <p className="leading-relaxed text-zinc-300">{brief.description}</p>
+            <p className="leading-relaxed text-muted">{brief.description}</p>
           </section>
 
           {(brief.visualDirection || brief.reference) && (
@@ -96,13 +96,13 @@ export default function BriefDetailPage() {
               {brief.visualDirection && (
                 <div className="surface p-5">
                   <p className="label">Visual direction</p>
-                  <p className="text-sm text-zinc-300">{brief.visualDirection}</p>
+                  <p className="text-sm text-muted">{brief.visualDirection}</p>
                 </div>
               )}
               {brief.reference && (
                 <div className="surface p-5">
                   <p className="label">References</p>
-                  <p className="text-sm break-words text-zinc-300">{brief.reference}</p>
+                  <p className="text-sm break-words text-muted">{brief.reference}</p>
                 </div>
               )}
             </section>

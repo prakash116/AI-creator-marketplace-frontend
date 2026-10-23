@@ -1,7 +1,17 @@
-/* Shared seed data + domain types. Mirrored at Backend/src/seed/seed-data.ts — keep in sync. */
+/*
+ * Shared seed data + domain types. Mirrored at Backend/src/seed/seed-data.ts —
+ * keep the entity data in sync.
+ *
+ * The vocabulary lists (content types, specializations, locations) now live in
+ * `./taxonomy` so filter UI can import them without pulling this whole file
+ * into the client bundle. They are re-exported below, so every existing
+ * `from '@/data/seed'` import keeps working unchanged.
+ */
 
-export type ContentType = 'Video' | 'Image' | 'Animation' | '3D' | 'Motion Graphics';
-export type Availability = 'Available' | 'Limited' | 'Booked';
+import type { Availability, ContentType } from './taxonomy';
+
+export type { Availability, ContentType };
+export { CONTENT_TYPES, EXPERIENCE_BUCKETS, LOCATIONS, SPECIALIZATIONS } from './taxonomy';
 
 export interface VerificationSignal {
   type: 'portfolio' | 'tools' | 'workflow' | 'identity';
@@ -97,17 +107,6 @@ export interface Tool {
 }
 
 const img = (id: string, w = 1200) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
-
-export const SPECIALIZATIONS = [
-  'AI Filmmaker',
-  'AI Animator',
-  'AI Designer',
-  'Generative Artist',
-  '3D Artist',
-  'Motion Designer',
-];
-
-export const CONTENT_TYPES: ContentType[] = ['Video', 'Image', 'Animation', '3D', 'Motion Graphics'];
 
 export const TOOLS: Tool[] = [
   { id: 'midjourney', name: 'Midjourney', category: 'Image', description: 'Stylized image generation and concept art.' },
@@ -666,8 +665,6 @@ export const BRIEFS: Brief[] = [
     createdAt: '2026-10-07T14:00:00.000Z',
   },
 ];
-
-export const LOCATIONS = Array.from(new Set(CREATORS.map((c) => c.location))).sort();
 
 export const DEMO_USERS = [
   { name: 'Northwind Studio', email: 'brand@cre8r.dev', password: 'password123', role: 'brand' as const },

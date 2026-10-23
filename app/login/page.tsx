@@ -52,13 +52,13 @@ export default function LoginPage() {
           <label className="label" htmlFor="password">Password</label>
           <input id="password" type="password" autoComplete="current-password" className="field" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
-        {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+        {error && <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading && <Loader2 className="h-4 w-4 animate-spin" />} Log in
         </Button>
       </form>
 
-      <div className="mt-6 rounded-xl border border-line bg-white/[0.02] p-4">
+      <div className="mt-6 rounded-xl border border-line bg-raise p-4">
         <p className="text-xs text-muted">Demo accounts (password: password123)</p>
         <div className="mt-3 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={() => fill('brand')}>
@@ -72,7 +72,7 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-muted">
         New to CRE8R?{' '}
-        <Link href="/register" className="text-purple hover:text-violet-300">
+        <Link href="/register" className="text-purple hover:text-violet">
           Create an account
         </Link>
       </p>

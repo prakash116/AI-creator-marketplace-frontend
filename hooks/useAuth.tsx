@@ -20,13 +20,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let stored: AuthUser | null = null;
     try {
       const raw = window.localStorage.getItem(USER_KEY);
-      if (raw && tokenStore.get()) setUser(JSON.parse(raw));
+      if (raw && tokenStore.get()) stored = JSON.parse(raw);
     } catch {
       /* ignore */
     }
+    setUser(stored);
     setReady(true);
+
+    if (!stored) return;
+
+    // A token outlives the data it points at — switching storage backends, or
+    // wiping the database, leaves a valid-looking session whose user is gone.
+    // Check once on load and clear the session if the account no longer exists.
+    let live = true;
+    api
+      .me()
+      .then((fresh) => {
+        if (live && fresh) {
+          setUser(fresh);
+          try {
+            window.localStorage.setItem(USER_KEY, JSON.stringify(fresh));
+          } catch {
+            /* ignore */
+          }
+        }
+      })
+      .catch((err) => {
+        if (!live) return;
+        // Only a rejected identity clears the session; a network blip must not.
+        const status = (err as { status?: number })?.status;
+        if (status === 401 || status === 403 || status === 404) {
+          tokenStore.set(null);
+          try {
+            window.localStorage.removeItem(USER_KEY);
+          } catch {
+            /* ignore */
+          }
+          setUser(null);
+        }
+      });
+
+    return () => {
+      live = false;
+    };
   }, []);
 
   const persist = useCallback((token: string, u: AuthUser) => {

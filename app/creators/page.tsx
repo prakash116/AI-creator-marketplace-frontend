@@ -60,10 +60,22 @@ function CreatorsDiscovery() {
 
   const result = useAsync(() => api.getCreators(query), [queryKey]);
 
+  // Native History API — Next integrates these calls with its router, so the
+  // shareable URL stays in sync without a navigation or RSC round-trip.
   useEffect(() => {
     const qs = queryKey ? `?${queryKey}` : '';
     window.history.replaceState(null, '', `/creators${qs}`);
   }, [queryKey]);
+
+  // Keep the body from scrolling behind the mobile filter drawer.
+  useEffect(() => {
+    if (!mobileFilters) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileFilters]);
 
   const activeChips = [
     ...ARRAY_KEYS.flatMap((k) => filters[k].map((v) => ({ key: k, value: v }))),
@@ -73,22 +85,32 @@ function CreatorsDiscovery() {
   const removeChip = (key: (typeof ARRAY_KEYS)[number] | 'verified', value: string) =>
     setFilters((f) => (key === 'verified' ? { ...f, verified: false } : { ...f, [key]: f[key].filter((v) => v !== value) }));
 
+  // Clearing keeps the chosen sort order — it isn't a filter.
   const reset = () => setFilters({ ...emptyFilters(), sort: filters.sort });
   const total = result.data?.total ?? 0;
 
   return (
-    <div className="container-x pt-28 pb-24">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">Find your next creative partner</h1>
-        <p className="mt-3 text-muted">Search verified AI filmmakers, animators, designers and 3D artists.</p>
-        <SearchBar value={filters.search} onChange={(search) => setFilters((f) => ({ ...f, search }))} className="mt-8 max-w-3xl" />
+    <div className="container-x pt-24 pb-20 sm:pt-28 sm:pb-24">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl md:text-5xl">
+          Find your next creative partner
+        </h1>
+        <p className="mt-3 text-sm text-muted sm:text-base">
+          Search verified AI filmmakers, animators, designers and 3D artists.
+        </p>
+        <SearchBar
+          value={filters.search}
+          onChange={(search) => setFilters((f) => ({ ...f, search }))}
+          className="mt-6 max-w-3xl sm:mt-8"
+        />
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="text-xs text-subtle">Popular:</span>
           {QUICK.map((q) => (
             <button
               key={q}
+              type="button"
               onClick={() => setFilters((f) => ({ ...f, search: q }))}
-              className="cursor-pointer rounded-full border border-line px-3 py-1 text-xs text-muted transition hover:border-white/20 hover:text-white"
+              className="cursor-pointer rounded-full border border-line px-3 py-1.5 text-xs text-muted transition-colors hover:border-line-strong hover:text-fg"
             >
               {q}
             </button>
@@ -96,21 +118,21 @@ function CreatorsDiscovery() {
         </div>
       </motion.div>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[280px_1fr]">
+      <div className="mt-8 grid gap-6 sm:mt-10 lg:grid-cols-[272px_1fr] lg:gap-8">
         <div className="hidden lg:block">
-          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto no-scrollbar">
+          <div className="no-scrollbar sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <FilterSidebar filters={filters} onChange={setFilters} onReset={reset} />
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted">
+            <p className="text-sm text-muted" aria-live="polite">
               {result.loading && !result.data ? (
                 'Searching…'
               ) : (
                 <>
-                  <span className="font-semibold text-white">{total}</span> {total === 1 ? 'creator' : 'creators'} found
+                  <span className="font-semibold text-fg">{total}</span> {total === 1 ? 'creator' : 'creators'} found
                 </>
               )}
             </p>
@@ -123,7 +145,7 @@ function CreatorsDiscovery() {
                 <select
                   value={filters.sort}
                   onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value as CreatorFilters['sort'] }))}
-                  className="h-9 cursor-pointer appearance-none rounded-full border border-line bg-card pr-4 pl-8 text-sm text-white outline-none hover:border-white/20"
+                  className="h-9 cursor-pointer appearance-none rounded-full border border-line bg-surface pr-4 pl-8 text-sm text-fg outline-none transition-colors hover:border-line-strong"
                   aria-label="Sort creators"
                 >
                   <option value="relevance">Sort by Relevance</option>
@@ -136,15 +158,22 @@ function CreatorsDiscovery() {
 
           <AnimatePresence>
             {activeChips.length > 0 && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-5 flex flex-wrap gap-2 overflow-hidden">
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-5 flex flex-wrap gap-2 overflow-hidden"
+              >
                 {activeChips.map((c) => (
                   <motion.button
                     layout
+                    type="button"
                     key={`${c.key}-${c.value}`}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     onClick={() => removeChip(c.key, c.value)}
-                    className="flex cursor-pointer items-center gap-1.5 rounded-full border border-purple/40 bg-purple/10 px-3 py-1 text-xs text-violet-100 hover:bg-purple/20"
+                    aria-label={`Remove filter ${c.value}`}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-full border border-purple/40 bg-purple/10 px-3 py-1 text-xs font-medium text-purple transition-colors hover:bg-purple/20"
                   >
                     {c.value} <X className="h-3 w-3" />
                   </motion.button>
@@ -160,15 +189,21 @@ function CreatorsDiscovery() {
           ) : total === 0 ? (
             <EmptyState
               title="No creators found"
-              description="Try removing some filters."
+              description="Try removing some filters or searching for something broader."
               action={
-                <Button variant="outline" size="sm" onClick={() => setFilters(emptyFilters())}>
+                <Button variant="outline" size="sm" onClick={reset}>
                   Clear all filters
                 </Button>
               }
             />
           ) : (
-            <motion.div layout className={cn('grid gap-5 sm:grid-cols-2 xl:grid-cols-3 transition-opacity', result.loading && 'opacity-60')}>
+            <motion.div
+              layout
+              className={cn(
+                'grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3',
+                result.loading && 'opacity-60 transition-opacity',
+              )}
+            >
               <AnimatePresence mode="popLayout">
                 {result.data?.data.map((c, i) => (
                   <CreatorCard key={c.id} creator={c} index={i} />
@@ -182,21 +217,42 @@ function CreatorsDiscovery() {
       {/* Mobile filter drawer */}
       <AnimatePresence>
         {mobileFilters && (
-          <motion.div className="fixed inset-0 z-[80] lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMobileFilters(false)} />
+          <motion.div
+            className="fixed inset-0 z-[80] lg:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileFilters(false)} />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="absolute top-0 right-0 bottom-0 w-[88%] max-w-sm overflow-y-auto bg-ink-900 p-4"
+              className="absolute top-0 right-0 bottom-0 flex w-[92%] max-w-sm flex-col bg-bg"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Filters"
             >
-              <div className="mb-3 flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => setMobileFilters(false)}>
-                  Show {total} results
+              <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
+                <p className="font-semibold">Filters</p>
+                <button
+                  type="button"
+                  onClick={() => setMobileFilters(false)}
+                  aria-label="Close filters"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-raise-2 hover:text-fg"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3">
+                <FilterSidebar filters={filters} onChange={setFilters} onReset={reset} />
+              </div>
+              <div className="border-t border-line p-3">
+                <Button className="w-full" onClick={() => setMobileFilters(false)}>
+                  Show {total} {total === 1 ? 'result' : 'results'}
                 </Button>
               </div>
-              <FilterSidebar filters={filters} onChange={setFilters} onReset={reset} />
             </motion.div>
           </motion.div>
         )}
@@ -207,7 +263,13 @@ function CreatorsDiscovery() {
 
 export default function CreatorsPage() {
   return (
-    <Suspense fallback={<div className="container-x pt-28"><CardGridSkeleton /></div>}>
+    <Suspense
+      fallback={
+        <div className="container-x pt-28">
+          <CardGridSkeleton />
+        </div>
+      }
+    >
       <CreatorsDiscovery />
     </Suspense>
   );

@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Info, XCircle } from 'lucide-react';
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 type ToastKind = 'success' | 'error' | 'info';
 interface Toast {
@@ -17,14 +17,19 @@ const ToastContext = createContext<(kind: ToastKind, title: string, description?
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   const push = useCallback((kind: ToastKind, title: string, description?: string) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, kind, title, description }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+    timers.current.push(setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000));
   }, []);
 
+  // Don't leave dismiss timers running after unmount.
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
   const Icon = { success: CheckCircle2, error: XCircle, info: Info };
-  const color = { success: 'text-success', error: 'text-red-400', info: 'text-cyan' };
+  const color = { success: 'text-success', error: 'text-danger', info: 'text-cyan' };
 
   return (
     <ToastContext.Provider value={push}>
@@ -40,7 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 initial={{ opacity: 0, y: 16, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 40 }}
-                className="pointer-events-auto flex gap-3 rounded-xl border border-line-strong bg-card-2/95 p-4 shadow-2xl backdrop-blur"
+                className="pointer-events-auto flex gap-3 rounded-xl border border-line-strong bg-surface-2/95 p-4 shadow-float backdrop-blur"
               >
                 <I className={`mt-0.5 h-5 w-5 shrink-0 ${color[t.kind]}`} />
                 <div>

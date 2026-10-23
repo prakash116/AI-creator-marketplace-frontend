@@ -6,7 +6,7 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { CardGridSkeleton, ErrorState } from '@/components/LoadingState';
 import { SearchBar } from '@/components/SearchBar';
-import { CONTENT_TYPES } from '@/data/seed';
+import { CONTENT_TYPES } from '@/data/taxonomy';
 import { useAsync } from '@/hooks/useAsync';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -54,7 +54,7 @@ function BriefsList() {
               onClick={() => setType(t)}
               className={cn(
                 'shrink-0 cursor-pointer rounded-full border px-4 py-2 text-sm transition',
-                type === t ? 'border-white bg-white text-black' : 'border-line text-muted hover:text-white',
+                type === t ? 'border-fg bg-fg text-bg' : 'border-line text-muted hover:text-fg',
               )}
             >
               {t}
@@ -64,7 +64,7 @@ function BriefsList() {
       </div>
 
       <p className="mt-6 mb-5 text-sm text-muted">
-        <span className="font-semibold text-white">{filtered.length}</span> open {filtered.length === 1 ? 'brief' : 'briefs'}
+        <span className="font-semibold text-fg">{filtered.length}</span> open {filtered.length === 1 ? 'brief' : 'briefs'}
       </p>
 
       {error ? (

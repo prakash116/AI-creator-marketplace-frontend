@@ -5,12 +5,12 @@ import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-xl bg-white/[0.05]', className)} />;
+  return <div className={cn('animate-pulse rounded-xl bg-raise-2', className)} />;
 }
 
 export function CardGridSkeleton({ count = 6, className }: { count?: number; className?: string }) {
   return (
-    <div className={cn('grid gap-5 sm:grid-cols-2 xl:grid-cols-3', className)}>
+    <div className={cn('grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3', className)} aria-hidden>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="surface overflow-hidden p-5">
           <div className="flex items-center gap-3">
@@ -33,8 +33,8 @@ export function CardGridSkeleton({ count = 6, className }: { count?: number; cla
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
-    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-muted">
-      <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/10 border-t-purple" />
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-muted" role="status">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-line-strong border-t-purple" />
       <p className="text-sm">{label}</p>
     </div>
   );
@@ -42,10 +42,10 @@ export function LoadingState({ label = 'Loading…' }: { label?: string }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="surface flex flex-col items-center px-6 py-16 text-center">
-      <AlertTriangle className="mb-4 h-8 w-8 text-amber-400" />
+    <div className="surface flex flex-col items-center px-6 py-12 text-center sm:py-16" role="alert">
+      <AlertTriangle className="mb-4 h-8 w-8 text-warn" />
       <h3 className="font-semibold">Something went wrong</h3>
-      <p className="mt-1 text-sm text-muted">{message}</p>
+      <p className="mt-1 max-w-sm text-sm text-muted">{message}</p>
       {onRetry && (
         <Button variant="outline" size="sm" className="mt-5" onClick={onRetry}>
           Try again

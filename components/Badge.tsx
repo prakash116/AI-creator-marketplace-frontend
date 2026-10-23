@@ -2,19 +2,28 @@ import { cn } from '@/lib/utils';
 import { BadgeCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-type Tone = 'default' | 'violet' | 'cyan' | 'success' | 'warning';
+type Tone = 'default' | 'violet' | 'cyan' | 'success' | 'warning' | 'media';
 
 const tones: Record<Tone, string> = {
-  default: 'border-line bg-white/[0.04] text-zinc-300',
-  violet: 'border-purple/25 bg-purple/10 text-violet-200',
-  cyan: 'border-cyan/25 bg-cyan/10 text-cyan-200',
-  success: 'border-success/25 bg-success/10 text-green-300',
-  warning: 'border-amber-400/25 bg-amber-400/10 text-amber-200',
+  default: 'border-line bg-raise text-muted',
+  violet: 'border-purple/25 bg-purple/10 text-purple',
+  cyan: 'border-cyan/25 bg-cyan/10 text-cyan',
+  success: 'border-success/25 bg-success/10 text-success',
+  warning: 'border-warn/25 bg-warn/10 text-warn',
+  // For badges sitting on top of imagery, where the backdrop is dark in
+  // both themes and the label must stay light.
+  media: 'border-white/15 bg-black/45 text-on-media backdrop-blur',
 };
 
 export function Badge({ children, tone = 'default', className }: { children: ReactNode; tone?: Tone; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap', tones[tone], className)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium whitespace-nowrap',
+        tones[tone],
+        className,
+      )}
+    >
       {children}
     </span>
   );

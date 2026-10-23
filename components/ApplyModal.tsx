@@ -66,7 +66,7 @@ export function ApplyModal({ brief, onClose, onApplied }: { brief: Brief | null;
             placeholder="Share your approach, relevant work and which tools you'd use…"
             className={`field resize-none ${error ? 'border-red-500/60' : ''}`}
           />
-          {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
+          {error && <p className="mt-1.5 text-xs text-danger">{error}</p>}
           <label className="label mt-4" htmlFor="rate">
             Your quote (optional)
           </label>

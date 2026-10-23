@@ -4,7 +4,8 @@ import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { contentIcon } from '@/components/PortfolioCard';
 import { SmartImage } from '@/components/SmartImage';
-import { CONTENT_TYPES, CREATORS, SKILLS } from '@/data/seed';
+import { CREATORS } from '@/data/seed';
+import { CONTENT_TYPES, SKILL_NAMES } from '@/data/taxonomy';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { api } from '@/lib/api';
@@ -71,7 +72,7 @@ function Card({ step, title, description, children }: { step: number; title: str
   return (
     <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: step * 0.05 }} className="surface p-6 md:p-8">
       <div className="mb-6 flex items-start gap-4">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-purple/40 bg-purple/10 text-sm font-semibold text-violet-200">{step}</span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-purple/40 bg-purple/10 text-sm font-semibold text-purple">{step}</span>
         <div>
           <h2 className="font-semibold">{title}</h2>
           <p className="text-sm text-muted">{description}</p>
@@ -86,7 +87,7 @@ function FieldError({ msg }: { msg?: string }) {
   return (
     <AnimatePresence>
       {msg && (
-        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-1.5 text-xs text-red-400">
+        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-1.5 text-xs text-danger">
           {msg}
         </motion.p>
       )}
@@ -101,7 +102,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       className={cn(
         'flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm transition',
-        active ? 'border-purple/60 bg-purple/15 text-white' : 'border-line text-muted hover:border-white/20 hover:text-white',
+        active ? 'border-purple/60 bg-purple/15 text-fg' : 'border-line text-muted hover:border-line-strong hover:text-fg',
       )}
     >
       {active && <Check className="h-3.5 w-3.5" />}
@@ -208,16 +209,16 @@ function CreateBriefForm() {
           </motion.div>
           <h1 className="relative mt-6 text-3xl font-semibold tracking-tight">Your brief is live.</h1>
           <p className="mt-2 text-muted">
-            <span className="text-white">{created.title}</span> is now visible to verified creators
+            <span className="text-fg">{created.title}</span> is now visible to verified creators
             {invited ? (
               <>
                 {' '}
-                and <span className="text-white">{invited.name}</span> has been invited
+                and <span className="text-fg">{invited.name}</span> has been invited
               </>
             ) : null}
             .
           </p>
-          <div className="mt-6 grid grid-cols-3 gap-3 rounded-xl border border-line bg-white/[0.02] p-4 text-left text-xs">
+          <div className="mt-6 grid grid-cols-3 gap-3 rounded-xl border border-line bg-raise p-4 text-left text-xs">
             <div>
               <p className="text-subtle">Content</p>
               <p className="mt-0.5 font-medium">{created.contentType}</p>
@@ -272,12 +273,12 @@ function CreateBriefForm() {
           <div className="grid gap-5 md:grid-cols-2">
             <div data-error={!!errors.title}>
               <label className="label" htmlFor="title">Project name *</label>
-              <input id="title" className={cn('field', errors.title && 'border-red-500/60')} placeholder="e.g. Summer Launch Film" value={form.title} onChange={(e) => set('title', e.target.value)} />
+              <input id="title" className={cn('field', errors.title && 'border-danger/60')} placeholder="e.g. Summer Launch Film" value={form.title} onChange={(e) => set('title', e.target.value)} />
               <FieldError msg={errors.title} />
             </div>
             <div data-error={!!errors.brandName}>
               <label className="label" htmlFor="brand">Brand name *</label>
-              <input id="brand" className={cn('field', errors.brandName && 'border-red-500/60')} placeholder="e.g. Volt Motors" value={form.brandName} onChange={(e) => set('brandName', e.target.value)} />
+              <input id="brand" className={cn('field', errors.brandName && 'border-danger/60')} placeholder="e.g. Volt Motors" value={form.brandName} onChange={(e) => set('brandName', e.target.value)} />
               <FieldError msg={errors.brandName} />
             </div>
           </div>
@@ -286,7 +287,7 @@ function CreateBriefForm() {
             <textarea
               id="desc"
               rows={4}
-              className={cn('field resize-none', errors.description && 'border-red-500/60')}
+              className={cn('field resize-none', errors.description && 'border-danger/60')}
               placeholder="What are you making, who is it for, and what should it achieve?"
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
@@ -310,7 +311,7 @@ function CreateBriefForm() {
                   onClick={() => set('contentType', c)}
                   className={cn(
                     'flex cursor-pointer flex-col items-center gap-2 rounded-xl border p-4 text-sm transition',
-                    active ? 'border-purple/60 bg-purple/10 text-white' : 'border-line text-muted hover:border-white/20 hover:text-white',
+                    active ? 'border-purple/60 bg-purple/10 text-fg' : 'border-line text-muted hover:border-line-strong hover:text-fg',
                   )}
                 >
                   <Icon className={cn('h-5 w-5', active && 'text-purple')} />
@@ -323,9 +324,9 @@ function CreateBriefForm() {
           <div>
             <p className="label">Required skills</p>
             <div className="flex flex-wrap gap-2">
-              {SKILLS.map((s) => (
-                <Chip key={s.id} active={form.requiredSkills.includes(s.name)} onClick={() => toggleIn('requiredSkills', s.name)}>
-                  {s.name}
+              {SKILL_NAMES.map((s) => (
+                <Chip key={s} active={form.requiredSkills.includes(s)} onClick={() => toggleIn('requiredSkills', s)}>
+                  {s}
                 </Chip>
               ))}
             </div>
@@ -366,11 +367,11 @@ function CreateBriefForm() {
                     onClick={() => set('aspectRatio', a.value)}
                     className={cn(
                       'flex cursor-pointer flex-col items-center gap-3 rounded-xl border py-4 text-sm transition',
-                      active ? 'border-purple/60 bg-purple/10 text-white' : 'border-line text-muted hover:border-white/20',
+                      active ? 'border-purple/60 bg-purple/10 text-fg' : 'border-line text-muted hover:border-line-strong',
                     )}
                   >
                     <span className="flex h-7 items-center">
-                      <span style={{ width: a.w, height: a.h }} className={cn('rounded-[3px] border-2', active ? 'border-purple' : 'border-white/30')} />
+                      <span style={{ width: a.w, height: a.h }} className={cn('rounded-[3px] border-2', active ? 'border-purple' : 'border-line-strong')} />
                     </span>
                     {a.value}
                   </button>
@@ -403,12 +404,12 @@ function CreateBriefForm() {
                   onClick={() => set('commercialUse', l.value)}
                   className={cn(
                     'cursor-pointer rounded-xl border p-4 text-left transition',
-                    active ? 'border-purple/60 bg-purple/10' : 'border-line hover:border-white/20',
+                    active ? 'border-purple/60 bg-purple/10' : 'border-line hover:border-line-strong',
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">{l.value}</p>
-                    <span className={cn('flex h-4 w-4 items-center justify-center rounded-full border', active ? 'border-purple bg-purple' : 'border-white/30')}>
+                    <span className={cn('flex h-4 w-4 items-center justify-center rounded-full border', active ? 'border-purple bg-purple' : 'border-line-strong')}>
                       {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                     </span>
                   </div>
@@ -443,7 +444,7 @@ function CreateBriefForm() {
                 id="deadline"
                 type="date"
                 min={form.startDate || today()}
-                className={cn('field', errors.deadline && 'border-red-500/60')}
+                className={cn('field', errors.deadline && 'border-danger/60')}
                 value={form.deadline}
                 onChange={(e) => set('deadline', e.target.value)}
               />

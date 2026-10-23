@@ -1,6 +1,6 @@
 'use client';
 
-import { CONTENT_TYPES, LOCATIONS, SKILLS, SPECIALIZATIONS, TOOLS } from '@/data/seed';
+import { CONTENT_TYPES, EXPERIENCE_BUCKETS, LOCATIONS, SKILL_NAMES, SPECIALIZATIONS, TOOL_NAMES } from '@/data/taxonomy';
 import { cn } from '@/lib/utils';
 import type { CreatorFilters } from '@/types';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -9,28 +9,34 @@ import { useState, type ReactNode } from 'react';
 
 type ArrayKey = 'specialization' | 'skill' | 'tool' | 'contentType' | 'location' | 'experience';
 
-const EXPERIENCE = [
-  { value: '0-2', label: '0–2 years' },
-  { value: '3-5', label: '3–5 years' },
-  { value: '6-9', label: '6–9 years' },
-  { value: '10+', label: '10+ years' },
-];
-
 function Group({ title, count, children, defaultOpen = true }: { title: string; count: number; children: ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-line py-4 last:border-0">
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center justify-between text-sm font-medium">
+    <div className="border-b border-line py-3 last:border-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-lg text-sm font-medium"
+      >
         <span className="flex items-center gap-2">
           {title}
-          {count > 0 && <span className="rounded-full bg-purple/20 px-1.5 text-[11px] text-violet-200">{count}</span>}
+          {count > 0 && (
+            <span className="rounded-full bg-purple/15 px-1.5 py-0.5 text-[11px] font-semibold text-purple">{count}</span>
+          )}
         </span>
-        <ChevronDown className={cn('h-4 w-4 text-subtle transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-subtle transition-transform', open && 'rotate-180')} />
       </button>
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="pt-3">{children}</div>
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-2 pb-1">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -40,16 +46,21 @@ function Group({ title, count, children, defaultOpen = true }: { title: string; 
 
 function CheckRow({ label, checked, onClick }: { label: string; checked: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="group flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-1 py-1.5 text-left text-sm text-muted transition hover:text-white">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={checked}
+      className="group flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-1 text-left text-sm text-muted transition-colors hover:text-fg"
+    >
       <span
         className={cn(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition',
-          checked ? 'border-purple bg-purple text-white' : 'border-white/20 group-hover:border-white/40',
+          'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border transition-colors',
+          checked ? 'border-purple bg-purple text-on-media' : 'border-line-strong group-hover:border-purple/50',
         )}
       >
         {checked && <Check className="h-3 w-3" strokeWidth={3} />}
       </span>
-      <span className={checked ? 'text-white' : ''}>{label}</span>
+      <span className={cn('break-anywhere', checked && 'font-medium text-fg')}>{label}</span>
     </button>
   );
 }
@@ -57,10 +68,14 @@ function CheckRow({ label, checked, onClick }: { label: string; checked: boolean
 function Chip({ label, checked, onClick }: { label: string; checked: boolean; onClick: () => void }) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-pressed={checked}
       className={cn(
-        'cursor-pointer rounded-full border px-3 py-1.5 text-xs transition',
-        checked ? 'border-purple/60 bg-purple/15 text-white' : 'border-line text-muted hover:border-white/20 hover:text-white',
+        'cursor-pointer rounded-full border px-3 py-1.5 text-xs transition-colors',
+        checked
+          ? 'border-purple/60 bg-purple/12 font-medium text-purple'
+          : 'border-line text-muted hover:border-line-strong hover:text-fg',
       )}
     >
       {label}
@@ -82,14 +97,24 @@ export function FilterSidebar({
     onChange({ ...filters, [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value] });
   };
   const activeCount =
-    filters.specialization.length + filters.skill.length + filters.tool.length + filters.contentType.length + filters.location.length + filters.experience.length + (filters.verified ? 1 : 0);
+    filters.specialization.length +
+    filters.skill.length +
+    filters.tool.length +
+    filters.contentType.length +
+    filters.location.length +
+    filters.experience.length +
+    (filters.verified ? 1 : 0);
 
   return (
-    <aside className="surface p-5">
-      <div className="mb-1 flex items-center justify-between">
+    <aside className="surface p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-2 pb-1">
         <p className="font-semibold">Filters</p>
         {activeCount > 0 && (
-          <button onClick={onReset} className="cursor-pointer text-xs text-purple hover:text-violet-300">
+          <button
+            type="button"
+            onClick={onReset}
+            className="cursor-pointer rounded-md px-1 text-xs font-medium text-purple transition-colors hover:text-violet"
+          >
             Clear all ({activeCount})
           </button>
         )}
@@ -97,17 +122,30 @@ export function FilterSidebar({
 
       <Group title="Verification" count={filters.verified ? 1 : 0}>
         <button
+          type="button"
+          role="switch"
+          aria-checked={filters.verified}
           onClick={() => onChange({ ...filters, verified: !filters.verified })}
           className={cn(
-            'flex w-full cursor-pointer items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition',
-            filters.verified ? 'border-cyan/40 bg-cyan/10 text-white' : 'border-line text-muted hover:text-white',
+            'flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 text-sm transition-colors',
+            filters.verified ? 'border-cyan/40 bg-cyan/10 font-medium text-fg' : 'border-line text-muted hover:text-fg',
           )}
         >
           <span className="flex items-center gap-2">
-            <BadgeCheck className="h-4 w-4 text-cyan" /> Verified only
+            <BadgeCheck className="h-4 w-4 shrink-0 text-cyan" /> Verified only
           </span>
-          <span className={cn('relative h-5 w-9 rounded-full transition', filters.verified ? 'bg-cyan' : 'bg-white/15')}>
-            <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all', filters.verified ? 'left-[18px]' : 'left-0.5')} />
+          <span
+            className={cn(
+              'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+              filters.verified ? 'bg-cyan' : 'bg-raise-3',
+            )}
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all',
+                filters.verified ? 'left-[18px]' : 'left-0.5',
+              )}
+            />
           </span>
         </button>
       </Group>
@@ -120,8 +158,8 @@ export function FilterSidebar({
 
       <Group title="AI Tools" count={filters.tool.length}>
         <div className="flex flex-wrap gap-1.5">
-          {TOOLS.map((t) => (
-            <Chip key={t.id} label={t.name} checked={filters.tool.includes(t.name)} onClick={() => toggle('tool', t.name)} />
+          {TOOL_NAMES.map((t) => (
+            <Chip key={t} label={t} checked={filters.tool.includes(t)} onClick={() => toggle('tool', t)} />
           ))}
         </div>
       </Group>
@@ -135,13 +173,13 @@ export function FilterSidebar({
       </Group>
 
       <Group title="Skills" count={filters.skill.length} defaultOpen={false}>
-        {SKILLS.map((s) => (
-          <CheckRow key={s.id} label={s.name} checked={filters.skill.includes(s.name)} onClick={() => toggle('skill', s.name)} />
+        {SKILL_NAMES.map((s) => (
+          <CheckRow key={s} label={s} checked={filters.skill.includes(s)} onClick={() => toggle('skill', s)} />
         ))}
       </Group>
 
       <Group title="Experience" count={filters.experience.length} defaultOpen={false}>
-        {EXPERIENCE.map((e) => (
+        {EXPERIENCE_BUCKETS.map((e) => (
           <CheckRow key={e.value} label={e.label} checked={filters.experience.includes(e.value)} onClick={() => toggle('experience', e.value)} />
         ))}
       </Group>

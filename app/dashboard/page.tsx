@@ -4,35 +4,42 @@ import { Badge, VerifiedBadge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { CreatorCard } from '@/components/CreatorCard';
 import { EmptyState } from '@/components/EmptyState';
-import { CardGridSkeleton } from '@/components/LoadingState';
+import { CardGridSkeleton, LoadingState } from '@/components/LoadingState';
 import { Modal } from '@/components/Modal';
 import { Logo } from '@/components/Navbar';
 import { PortfolioCard } from '@/components/PortfolioCard';
 import { PortfolioModal } from '@/components/PortfolioModal';
+import { ProfileSummary, completionPercent, profileChecklist } from '@/components/ProfileSummary';
+import { ProfileForm } from '@/components/ProfileForm';
 import { SmartImage } from '@/components/SmartImage';
 import { StatsCard } from '@/components/StatsCard';
-import { CONTENT_TYPES, CREATORS, PORTFOLIO } from '@/data/seed';
+import { ThemeSegmented, ThemeToggle } from '@/components/ThemeToggle';
+import { CREATORS } from '@/data/seed';
+import { CONTENT_TYPES } from '@/data/taxonomy';
 import { useAsync } from '@/hooks/useAsync';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { cn, formatDate, initials } from '@/lib/utils';
-import type { ContentType, PortfolioItem } from '@/types';
+import type { ContentType, Creator, PortfolioItem } from '@/types';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity,
+  ArrowRight,
   Bookmark,
   Briefcase,
-  Eye,
+  CheckCircle2,
+  Circle,
   FileText,
   Image as ImageIcon,
   LayoutGrid,
+  Loader2,
   LogOut,
   Menu,
   MessageSquare,
   Plus,
   Send,
   Settings,
+  ShieldCheck,
   Upload,
   User,
   Users,
@@ -44,31 +51,38 @@ import { useEffect, useState, type FormEvent } from 'react';
 
 type Tab = 'overview' | 'profile' | 'portfolio' | 'briefs' | 'saved' | 'messages' | 'settings';
 
-const NAV: { id: Tab; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutGrid },
-  { id: 'profile', label: 'My Profile', icon: User },
-  { id: 'portfolio', label: 'Portfolio', icon: ImageIcon },
-  { id: 'briefs', label: 'My Briefs', icon: FileText },
-  { id: 'saved', label: 'Saved Creators', icon: Bookmark },
-  { id: 'messages', label: 'Messages', icon: MessageSquare },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
+type NavItem = { id: Tab; label: string; icon: typeof LayoutGrid };
 
-const ACTIVITY = [
-  { who: 'Aarav Mehta', what: 'applied to', target: 'EV Launch Film — "Charge the City"', time: '12 min ago', avatar: CREATORS[0].avatar },
-  { who: 'Sofia Laurent', what: 'viewed your brief', target: 'Winter Couture Lookbook', time: '1 h ago', avatar: CREATORS[1].avatar },
-  { who: 'Kenji Watanabe', what: 'was shortlisted for', target: 'Product Hero Renders', time: '3 h ago', avatar: CREATORS[2].avatar },
-  { who: 'Maya Okafor', what: 'sent you a message about', target: 'Animated Mascot Series', time: 'Yesterday', avatar: CREATORS[3].avatar },
-  { who: 'Priya Raman', what: 'published new work', target: 'Brand Variations Engine', time: '2 days ago', avatar: CREATORS[5].avatar },
-];
+/**
+ * The two roles do different jobs here, so they get different menus:
+ * creators manage a public profile and portfolio, brands manage briefs.
+ */
+const navFor = (isCreator: boolean): NavItem[] =>
+  isCreator
+    ? [
+        { id: 'overview', label: 'Overview', icon: LayoutGrid },
+        { id: 'profile', label: 'My Profile', icon: User },
+        { id: 'portfolio', label: 'Portfolio', icon: ImageIcon },
+        { id: 'briefs', label: 'Browse Briefs', icon: FileText },
+        { id: 'saved', label: 'Saved Creators', icon: Bookmark },
+        { id: 'messages', label: 'Messages', icon: MessageSquare },
+        { id: 'settings', label: 'Settings', icon: Settings },
+      ]
+    : [
+        { id: 'overview', label: 'Overview', icon: LayoutGrid },
+        { id: 'briefs', label: 'My Briefs', icon: FileText },
+        { id: 'saved', label: 'Saved Creators', icon: Bookmark },
+        { id: 'messages', label: 'Messages', icon: MessageSquare },
+        { id: 'settings', label: 'Settings', icon: Settings },
+      ];
 
+// NOTE: the Messages tab is still a mock — these threads are not stored
+// anywhere and there is no messaging API behind them yet.
 const THREADS = [
   { id: 1, creator: CREATORS[0], last: 'Happy to jump on a call tomorrow to walk through the treatment.', time: '12:40', unread: 2 },
   { id: 2, creator: CREATORS[3], last: 'Here is the first character turnaround for Crunch!', time: 'Yesterday', unread: 0 },
   { id: 3, creator: CREATORS[2], last: 'Renders will be ready by Friday.', time: 'Mon', unread: 0 },
 ];
-
-const VIEWS = [32, 45, 38, 52, 61, 48, 70, 66, 82, 74, 91, 88, 97, 110];
 
 export default function DashboardPage() {
   const { user, ready, logout } = useAuth();
@@ -94,7 +108,15 @@ export default function DashboardPage() {
   const [draft, setDraft] = useState('');
 
   const isCreator = user?.role === 'creator';
-  const me = CREATORS.find((c) => c.id === (user?.creatorId ?? 'aarav-mehta')) ?? CREATORS[0];
+
+  // The signed-in user's own creator profile, straight from the API. Previously
+  // this was a hardcoded lookup that always resolved to the same demo creator.
+  const profile = useAsync(() => (user ? api.getMyCreator() : Promise.resolve(null)), [user?.id]);
+  const me = profile.data;
+
+  // Backs the "Saved creators" tab — shortlisted ids live in localStorage, the
+  // creator records themselves come from the API.
+  const allCreators = useAsync(() => api.getCreators(), []);
 
   useEffect(() => {
     try {
@@ -102,8 +124,27 @@ export default function DashboardPage() {
     } catch {
       /* ignore */
     }
-    setPortfolio(PORTFOLIO.filter((p) => p.creatorId === me.id));
-  }, [me.id]);
+  }, []);
+
+  // Own portfolio, keyed to the real profile.
+  useEffect(() => {
+    if (!me?.id) {
+      setPortfolio([]);
+      return;
+    }
+    let live = true;
+    api
+      .getPortfolio({ creatorId: me.id })
+      .then((items) => {
+        if (live) setPortfolio(items);
+      })
+      .catch(() => {
+        if (live) setPortfolio([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [me?.id]);
 
   const go = (t: Tab) => {
     setTab(t);
@@ -117,9 +158,57 @@ export default function DashboardPage() {
     setDraft('');
   };
 
+  // Fallback signals so the brand view (which has no creator record) still
+  // shows what CRE8R verifies.
+  const DEFAULT_SIGNALS = [
+    { type: 'identity', label: 'Identity Verified', verified: false },
+    { type: 'portfolio', label: 'Portfolio Verified', verified: false },
+    { type: 'tools', label: 'Tool Experience Verified', verified: false },
+    { type: 'workflow', label: 'Workflow Verified', verified: false },
+  ];
+
+  const NAV = navFor(isCreator);
+
+  const completeness = me ? completionPercent(profileChecklist(me, portfolio.length)) : 0;
+  const signals = me?.verification ?? [];
+  const verifiedSignals = signals.filter((v) => v.verified).length;
+  const totalSignals = signals.length || 4;
+
   const myBriefs = briefs.data ?? [];
   const activeBriefs = myBriefs.filter((b) => b.status === 'open').length;
   const applications = myBriefs.reduce((s, b) => s + b.applicants, 0);
+
+  const signOut = () => {
+    logout();
+    router.push('/');
+  };
+
+  const [creatingProfile, setCreatingProfile] = useState(false);
+
+  /**
+   * Rebuilds a creator profile for an account that has the creator role but no
+   * profile record — e.g. a session issued against the old in-memory storage.
+   */
+  const recreateProfile = async () => {
+    if (!user) return;
+    setCreatingProfile(true);
+    try {
+      const created = await api.createCreator({ name: user.name });
+      profile.setData(created);
+      toast.success('Profile created', 'You can fill in the details now.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not create your profile';
+      // A dead session can't be repaired in place — send them through login.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
+        toast.error('Your session has expired', 'Please log in again.');
+        signOut();
+      } else {
+        toast.error('Could not create profile', msg);
+      }
+    } finally {
+      setCreatingProfile(false);
+    }
+  };
 
   const Sidebar = (
     <div className="flex h-full flex-col">
@@ -133,10 +222,10 @@ export default function DashboardPage() {
             onClick={() => go(n.id)}
             className={cn(
               'relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition',
-              tab === n.id ? 'text-white' : 'text-muted hover:bg-white/[0.03] hover:text-white',
+              tab === n.id ? 'text-fg' : 'text-muted hover:bg-raise hover:text-fg',
             )}
           >
-            {tab === n.id && <motion.span layoutId="nav-active" className="absolute inset-0 rounded-xl border border-line bg-white/[0.06]" />}
+            {tab === n.id && <motion.span layoutId="nav-active" className="absolute inset-0 rounded-xl border border-line bg-raise-2" />}
             <n.icon className="relative h-4 w-4" />
             <span className="relative">{n.label}</span>
             {n.id === 'messages' && <span className="relative ml-auto rounded-full bg-purple px-1.5 text-[10px] font-semibold">2</span>}
@@ -156,7 +245,7 @@ export default function DashboardPage() {
                 logout();
                 router.push('/');
               }}
-              className="cursor-pointer text-muted hover:text-white"
+              className="cursor-pointer text-muted hover:text-fg"
               aria-label="Log out"
             >
               <LogOut className="h-4 w-4" />
@@ -186,20 +275,27 @@ export default function DashboardPage() {
       </AnimatePresence>
 
       <div className="flex-1 lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-line bg-ink-950/80 px-4 backdrop-blur-xl sm:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-line bg-bg/85 px-4 backdrop-blur-xl sm:px-8">
           <div className="flex items-center gap-3">
             <button className="cursor-pointer text-muted lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </button>
             <h1 className="font-semibold">{NAV.find((n) => n.id === tab)?.label}</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <ThemeToggle />
             <Button href="/creators" variant="ghost" size="sm" className="hidden sm:inline-flex">
               Find creators
             </Button>
-            <Button href="/briefs/create" size="sm">
-              <Plus className="h-4 w-4" /> New brief
-            </Button>
+            {isCreator ? (
+              <Button href="/briefs" size="sm">
+                <FileText className="h-4 w-4" /> Find briefs
+              </Button>
+            ) : (
+              <Button href="/briefs/create" size="sm">
+                <Plus className="h-4 w-4" /> New brief
+              </Button>
+            )}
           </div>
         </header>
 
@@ -216,61 +312,125 @@ export default function DashboardPage() {
           <AnimatePresence mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
               {tab === 'overview' && (
-                <div className="space-y-8">
+                <div className="space-y-6 sm:space-y-8">
                   <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">Good to see you{user ? `, ${user.name.split(' ')[0]}` : ''} 👋</h2>
-                    <p className="mt-1 text-sm text-muted">Here&apos;s what happened across your workspace this month.</p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                    <StatsCard label="Profile Views" value="3,482" delta="+18.2%" icon={Eye} />
-                    <StatsCard label="Portfolio Views" value="12.9k" delta="+24.6%" icon={ImageIcon} />
-                    <StatsCard label="Active Briefs" value={String(activeBriefs || '—')} delta="+2" icon={Briefcase} />
-                    <StatsCard label="Applications" value={String(applications || '—')} delta="+31" icon={Users} />
-                    <StatsCard label="Shortlisted Creators" value={String(Math.max(saved.length, 6))} delta="+3" icon={Bookmark} />
+                    <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                      Good to see you{user ? `, ${user.name.split(' ')[0]}` : ''} 👋
+                    </h2>
+                    <p className="mt-1 text-sm text-muted">
+                      {isCreator
+                        ? 'Keep your profile sharp — it is what brands search on.'
+                        : 'Here is what is happening across your briefs.'}
+                    </p>
                   </div>
 
-                  <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-                    <div className="surface p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold">Profile views</h3>
-                          <p className="text-xs text-muted">Last 14 days</p>
+                  {/* Creator: own profile front and centre, with what is missing. */}
+                  {isCreator &&
+                    (profile.loading && !me ? (
+                      <div className="surface p-6">
+                        <LoadingState label="Loading your profile…" />
+                      </div>
+                    ) : me ? (
+                      <ProfileSummary creator={me} portfolioCount={portfolio.length} onEdit={() => go('profile')} />
+                    ) : null)}
+
+                  {/* Only stats this app actually records — no invented numbers. */}
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {isCreator ? (
+                      <>
+                        <StatsCard label="Portfolio pieces" value={String(portfolio.length)} icon={ImageIcon} />
+                        <StatsCard label="Profile complete" value={`${completeness}%`} icon={User} />
+                        <StatsCard label="Verified signals" value={`${verifiedSignals}/${totalSignals}`} icon={ShieldCheck} />
+                        <StatsCard label="Open briefs to apply" value={String(activeBriefs)} icon={FileText} />
+                      </>
+                    ) : (
+                      <>
+                        <StatsCard label="Briefs posted" value={String(myBriefs.length)} icon={FileText} />
+                        <StatsCard label="Open briefs" value={String(activeBriefs)} icon={Briefcase} />
+                        <StatsCard label="Total applicants" value={String(applications)} icon={Users} />
+                        <StatsCard label="Saved creators" value={String(saved.length)} icon={Bookmark} />
+                      </>
+                    )}
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
+                    <div className="surface p-5 sm:p-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="font-semibold">{isCreator ? 'Your latest work' : 'Your latest briefs'}</h3>
+                        <Button variant="ghost" size="sm" onClick={() => go(isCreator ? 'portfolio' : 'briefs')}>
+                          View all <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {isCreator ? (
+                        portfolio.length === 0 ? (
+                          <div className="mt-5 rounded-xl border border-dashed border-line-strong p-6 text-center">
+                            <ImageIcon className="mx-auto h-6 w-6 text-subtle" />
+                            <p className="mt-3 text-sm font-medium">No work published yet</p>
+                            <p className="mt-1 text-xs text-muted">Brands shortlist on portfolio first. Add your best piece.</p>
+                            <Button size="sm" className="mt-4" onClick={() => setUploadOpen(true)}>
+                              <Upload className="h-4 w-4" /> Upload work
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                            {portfolio.slice(0, 3).map((p) => (
+                              <PortfolioCard key={p.id} item={p} onOpen={setActiveItem} showMeta={false} />
+                            ))}
+                          </div>
+                        )
+                      ) : myBriefs.length === 0 ? (
+                        <div className="mt-5 rounded-xl border border-dashed border-line-strong p-6 text-center">
+                          <FileText className="mx-auto h-6 w-6 text-subtle" />
+                          <p className="mt-3 text-sm font-medium">No briefs yet</p>
+                          <Button href="/briefs/create" size="sm" className="mt-4">
+                            <Plus className="h-4 w-4" /> Post a brief
+                          </Button>
                         </div>
-                        <Badge tone="success">+18.2%</Badge>
-                      </div>
-                      <div className="mt-6 flex h-44 items-end gap-2">
-                        {VIEWS.map((v, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ height: 0 }}
-                            animate={{ height: `${(v / 110) * 100}%` }}
-                            transition={{ delay: i * 0.03, duration: 0.5, ease: 'easeOut' }}
-                            className="group relative flex-1 rounded-t-md bg-purple/70 transition-colors hover:bg-purple"
-                          >
-                            <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 rounded bg-white px-1.5 py-0.5 text-[10px] font-medium text-black opacity-0 transition group-hover:opacity-100">{v}</span>
-                          </motion.div>
-                        ))}
-                      </div>
+                      ) : (
+                        <ul className="mt-5 space-y-3">
+                          {myBriefs.slice(0, 4).map((b) => (
+                            <li key={b.id} className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{b.title}</p>
+                                <p className="truncate text-xs text-muted">
+                                  {b.contentType} · {b.budget}
+                                </p>
+                              </div>
+                              <Badge tone={b.status === 'open' ? 'success' : 'default'}>{b.applicants} applied</Badge>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
 
-                    <div className="surface p-6">
+                    <div className="surface p-5 sm:p-6">
                       <div className="flex items-center gap-2">
-                        <Activity className="h-4 w-4 text-purple" />
-                        <h3 className="font-semibold">Recent activity</h3>
+                        <ShieldCheck className="h-4 w-4 text-cyan" />
+                        <h3 className="font-semibold">{isCreator ? 'Your verification' : 'What we verify'}</h3>
                       </div>
-                      <ul className="mt-5 space-y-4">
-                        {ACTIVITY.map((a, i) => (
-                          <li key={i} className="flex gap-3">
-                            <SmartImage src={a.avatar} alt={a.who} className="h-8 w-8 shrink-0 rounded-full" />
-                            <div className="min-w-0 text-sm">
-                              <p className="text-zinc-300">
-                                <span className="font-medium text-white">{a.who}</span> {a.what} <span className="text-white">{a.target}</span>
-                              </p>
-                              <p className="text-xs text-subtle">{a.time}</p>
-                            </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {isCreator
+                          ? 'Verified creators rank higher and get shortlisted more often.'
+                          : 'Every creator is checked on these four signals.'}
+                      </p>
+                      <ul className="mt-5 space-y-3">
+                        {(me?.verification ?? DEFAULT_SIGNALS).map((v) => (
+                          <li key={v.type} className="flex items-center justify-between gap-3 text-sm">
+                            <span className={v.verified ? 'text-fg' : 'text-muted'}>{v.label}</span>
+                            {v.verified ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                            ) : (
+                              <Circle className="h-4 w-4 shrink-0 text-subtle" />
+                            )}
                           </li>
                         ))}
                       </ul>
+                      {isCreator && me && !me.verified && (
+                        <p className="mt-5 rounded-xl border border-line bg-raise p-3 text-xs text-muted">
+                          Verification is reviewed by the CRE8R team once your profile and portfolio are complete.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -278,63 +438,79 @@ export default function DashboardPage() {
 
               {tab === 'profile' && (
                 <div className="surface overflow-hidden">
-                  <div className="relative h-36">
-                    <SmartImage src={me.cover} alt="" className="h-full w-full" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
-                  </div>
-                  <div className="-mt-12 p-6">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                      <div className="flex items-end gap-4">
-                        <SmartImage src={me.avatar} alt={me.name} className="relative h-24 w-24 rounded-2xl border-4 border-card" />
-                        <div>
-                          <p className="flex items-center gap-1.5 text-xl font-semibold">
-                            {isCreator ? me.name : user?.name ?? me.name} {me.verified && <VerifiedBadge />}
-                          </p>
-                          <p className="text-sm text-purple">{me.specialization.join(' · ')}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button href={`/creators/${me.id}`} variant="outline" size="sm">
-                          View public profile
-                        </Button>
-                        <Button size="sm" onClick={() => toast.success('Profile saved')}>
-                          Save changes
-                        </Button>
-                      </div>
+                  {profile.loading && !me ? (
+                    <div className="p-6">
+                      <LoadingState label="Loading your profile…" />
                     </div>
-                    <div className="mt-8 grid gap-5 md:grid-cols-2">
-                      <div>
-                        <label className="label">Headline</label>
-                        <input className="field" defaultValue={me.headline} />
-                      </div>
-                      <div>
-                        <label className="label">Location</label>
-                        <input className="field" defaultValue={me.location} />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="label">Bio</label>
-                        <textarea className="field resize-none" rows={4} defaultValue={me.bio} />
-                      </div>
-                      <div>
-                        <p className="label">Skills</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {me.skills.map((s) => (
-                            <Badge key={s}>{s}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="label">AI tools</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {me.tools.map((t) => (
-                            <Badge key={t} tone="violet">
-                              {t}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+                  ) : !me ? (
+                    <div className="p-6">
+                      <EmptyState
+                        icon={<User className="h-6 w-6" />}
+                        title={
+                          !user
+                            ? 'Log in to edit your profile'
+                            : isCreator
+                              ? 'Your creator profile is missing'
+                              : 'Brand accounts have no public profile'
+                        }
+                        description={
+                          !user
+                            ? 'Sign in with a creator account to manage your public profile.'
+                            : isCreator
+                              ? // Usually means the session predates the current database — the
+                                // token is still valid but its records are gone. Rebuilding the
+                                // profile (or signing in again) fixes it.
+                                'This account is a creator, but no profile record was found. That can happen if your session is older than the current database. Create it again below, or log out and sign in once more.'
+                              : 'Only creators are listed in the marketplace. Brands post briefs and search for talent instead.'
+                        }
+                        action={
+                          !user ? (
+                            <Button href="/login">Log in</Button>
+                          ) : isCreator ? (
+                            <div className="flex flex-wrap justify-center gap-2">
+                              <Button onClick={recreateProfile} disabled={creatingProfile}>
+                                {creatingProfile && <Loader2 className="h-4 w-4 animate-spin" />} Create my profile
+                              </Button>
+                              <Button variant="outline" onClick={signOut}>
+                                Log out
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button href="/briefs/create">Post a brief</Button>
+                          )
+                        }
+                      />
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="relative h-36">
+                        <SmartImage src={me.cover} alt="" className="h-full w-full" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent" />
+                      </div>
+                      <div className="-mt-12 p-5 sm:p-6">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                          <div className="flex items-end gap-4">
+                            <SmartImage
+                              src={me.avatar}
+                              alt={me.name}
+                              className="relative h-24 w-24 rounded-2xl border-4 border-surface"
+                            />
+                            <div>
+                              <p className="flex items-center gap-1.5 text-xl font-semibold">
+                                {me.name} {me.verified && <VerifiedBadge />}
+                              </p>
+                              <p className="text-sm text-purple">
+                                {me.specialization.length ? me.specialization.join(' · ') : 'No specialization set'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-8">
+                          <ProfileForm creator={me} onSaved={(c: Creator) => profile.setData(c)} />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -377,7 +553,7 @@ export default function DashboardPage() {
                         </thead>
                         <tbody>
                           {myBriefs.map((b) => (
-                            <tr key={b.id} className="border-b border-line last:border-0 hover:bg-white/[0.02]">
+                            <tr key={b.id} className="border-b border-line last:border-0 hover:bg-raise">
                               <td className="px-6 py-4">
                                 <Link href={`/briefs/${b.id}`} className="font-medium hover:text-purple">
                                   {b.title}
@@ -409,10 +585,12 @@ export default function DashboardPage() {
                     action={<Button href="/creators">Discover creators</Button>}
                   />
                 ) : (
-                  <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    {CREATORS.filter((c) => saved.includes(c.id)).map((c, i) => (
-                      <CreatorCard key={c.id} creator={c} index={i} />
-                    ))}
+                  <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
+                    {(allCreators.data?.data ?? [])
+                      .filter((c) => saved.includes(c.id))
+                      .map((c, i) => (
+                        <CreatorCard key={c.id} creator={c} index={i} />
+                      ))}
                   </div>
                 ))}
 
@@ -423,7 +601,7 @@ export default function DashboardPage() {
                       <li key={t.id}>
                         <button
                           onClick={() => setThread(t)}
-                          className={cn('flex w-full cursor-pointer gap-3 border-b border-line p-4 text-left transition', thread.id === t.id ? 'bg-white/[0.05]' : 'hover:bg-white/[0.02]')}
+                          className={cn('flex w-full cursor-pointer gap-3 border-b border-line p-4 text-left transition', thread.id === t.id ? 'bg-raise-2' : 'hover:bg-raise')}
                         >
                           <SmartImage src={t.creator.avatar} alt={t.creator.name} className="h-10 w-10 shrink-0 rounded-full" />
                           <div className="min-w-0 flex-1">
@@ -451,7 +629,7 @@ export default function DashboardPage() {
                           key={i}
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={cn('max-w-[75%] rounded-2xl px-4 py-2.5 text-sm', m.me ? 'ml-auto bg-purple text-white' : 'bg-card-2 text-zinc-200')}
+                          className={cn('max-w-[75%] rounded-2xl px-4 py-2.5 text-sm', m.me ? 'ml-auto bg-purple text-fg' : 'bg-card-2 text-muted')}
                         >
                           {m.text}
                         </motion.div>
@@ -473,16 +651,26 @@ export default function DashboardPage() {
                     e.preventDefault();
                     toast.success('Settings saved');
                   }}
-                  className="surface max-w-2xl space-y-6 p-6"
+                  className="surface max-w-2xl space-y-6 p-5 sm:p-6"
                 >
                   <div className="grid gap-5 md:grid-cols-2">
                     <div>
-                      <label className="label">Name</label>
-                      <input className="field" defaultValue={user?.name ?? 'Demo User'} />
+                      <label className="label" htmlFor="settings-name">Name</label>
+                      <input id="settings-name" className="field" autoComplete="name" defaultValue={user?.name ?? 'Demo User'} />
                     </div>
                     <div>
-                      <label className="label">Email</label>
-                      <input className="field" type="email" defaultValue={user?.email ?? 'demo@cre8r.dev'} />
+                      <label className="label" htmlFor="settings-email">Email</label>
+                      <input id="settings-email" className="field" type="email" autoComplete="email" defaultValue={user?.email ?? 'demo@cre8r.dev'} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="label">Appearance</p>
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3">
+                      <span className="text-sm text-muted">
+                        Choose a theme, or follow your device setting.
+                      </span>
+                      <ThemeSegmented />
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -502,12 +690,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <PortfolioModal item={activeItem} onClose={() => setActiveItem(null)} creatorName={me.name} />
+      <PortfolioModal item={activeItem} onClose={() => setActiveItem(null)} creatorName={me?.name} />
       <UploadModal
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        onAdd={(item) => {
-          setPortfolio((p) => [{ ...item, creatorId: me.id }, ...p]);
+        creatorId={me?.id}
+        onAdded={(item) => {
+          setPortfolio((p) => [item, ...p]);
           toast.success('Work published', 'Your portfolio has been updated.');
         }}
       />
@@ -515,34 +704,52 @@ export default function DashboardPage() {
   );
 }
 
-function UploadModal({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (p: PortfolioItem) => void }) {
+/**
+ * Publishes a portfolio item through POST /api/portfolios. This used to only
+ * push into React state, so "published" work vanished on refresh.
+ */
+function UploadModal({
+  open,
+  onClose,
+  creatorId,
+  onAdded,
+}: {
+  open: boolean;
+  onClose: () => void;
+  creatorId?: string;
+  onAdded: (p: PortfolioItem) => void;
+}) {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [type, setType] = useState<ContentType>('Image');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (title.trim().length < 3) return setError('Title must be at least 3 characters.');
     if (!/^https?:\/\//.test(url)) return setError('Enter a valid media URL (Cloudinary, Unsplash, etc).');
-    onAdd({
-      id: `local-${Date.now()}`,
-      creatorId: '',
-      title: title.trim(),
-      description: 'Newly uploaded work.',
-      thumbnail: url,
-      mediaUrl: url,
-      contentType: type,
-      tools: [],
-      tags: [],
-      views: 0,
-      likes: 0,
-      createdAt: new Date().toISOString(),
-    });
-    setTitle('');
-    setUrl('');
+    if (!creatorId) return setError('You need a creator profile before publishing work.');
+
+    setSaving(true);
     setError('');
-    onClose();
+    try {
+      const saved = await api.createPortfolioItem({
+        creatorId,
+        title: title.trim(),
+        mediaUrl: url.trim(),
+        thumbnail: url.trim(),
+        contentType: type,
+      });
+      onAdded(saved);
+      setTitle('');
+      setUrl('');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not publish this item.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -575,7 +782,7 @@ function UploadModal({ open, onClose, onAdd }: { open: boolean; onClose: () => v
             ))}
           </div>
         </div>
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             <X className="h-4 w-4" /> Cancel
